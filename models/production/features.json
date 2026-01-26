@@ -1,0 +1,1 @@
+["temperature", "humidity", "wind_speed", "hour", "month", "day_of_week", "aqi_value", "aqi_lag_1h", "aqi_lag_24h", "aqi_rolling_avg_24h"]

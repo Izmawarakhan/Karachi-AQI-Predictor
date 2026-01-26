@@ -1,0 +1,10 @@
+cities:
+  karachi:
+    name: "Karachi"
+    latitude: 24.8608
+    longitude: 67.0011
+    timezone: "Asia/Karachi"
+
+api:
+  open_meteo:
+    base_url: "https://api.open-meteo.com/v1/forecast"

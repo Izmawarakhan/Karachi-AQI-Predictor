@@ -1,0 +1,42 @@
+
+
+name: AQI Prediction Pipeline
+
+on:
+  schedule:
+    # Yeh har raat 12 baje (UTC) khud chalay ga
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Taake aap manually bhi button daba kar chala saken
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Data Fetching
+      run: python -m src.data_pipeline.fetch_data
+      env:
+        MONGO_URI: ${{ secrets.MONGO_URI }}
+
+    - name: Run Feature Engineering
+      run: python -m src.feature_engineering.run_feature_engineering
+      env:
+        MONGO_URI: ${{ secrets.MONGO_URI }}
+
+    - name: Run Model Training
+      run: python -m src.training.improved_model_training
+      env:
+        MONGO_URI: ${{ secrets.MONGO_URI }}
