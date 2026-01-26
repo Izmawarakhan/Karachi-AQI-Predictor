@@ -10,13 +10,16 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 
+# Centralized connection class ko import karein
+from src.utils.mongodb_feature_store import feature_store
+
 def train_and_evaluate():
     print("🚀 STARTING TRAINING: XGBoost vs Random Forest vs Linear Regression")
     print("="*60)
 
     # 1. MongoDB se Feature data load karein
-    client = MongoClient('mongodb://localhost:27017/')
-    db = client.aqi_predictor
+    # feature_store khud hi decide karega ke Localhost use karna hai ya Atlas Cloud
+    db = feature_store.db
     
     data = list(db.model_features.find())
     if not data:
@@ -26,9 +29,7 @@ def train_and_evaluate():
     df = pd.DataFrame(data).drop('_id', axis=1)
     
     # 2. Data Preparation
-    # Numeric columns aur target set karein
     target = 'next_day_aqi'
-    # Sirf numbers wali columns lein (date ko nikal dein)
     X_raw = df.select_dtypes(include=[np.number])
     feature_cols = [c for c in X_raw.columns if c != target]
     
