@@ -10,15 +10,15 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 
-# Centralized connection class ko import karein
+# Import centralized connection class
 from src.utils.mongodb_feature_store import feature_store
 
 def train_and_evaluate():
-    print("🚀 STARTING TRAINING: XGBoost vs Random Forest vs Linear Regression")
+    print("🚀 STARTING OPTIMIZED TRAINING: Tuning for Better Accuracy")
     print("="*60)
 
-    # 1. MongoDB se Feature data load karein
-    # feature_store khud hi decide karega ke Localhost use karna hai ya Atlas Cloud
+    # 1. Load Feature data from MongoDB Atlas Cloud
+    # Feature store handles Local vs Cloud connection
     db = feature_store.db
     
     data = list(db.model_features.find())
@@ -39,10 +39,23 @@ def train_and_evaluate():
     # Train/Test Split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # 3. Models Definition
+    # 3. Optimized Models Definition (Tuned Hyperparameters)
     models = {
-        "XGBoost": xgb.XGBRegressor(n_estimators=100, learning_rate=0.05, max_depth=6),
-        "RandomForest": RandomForestRegressor(n_estimators=100, random_state=42),
+        # XGBoost tuned for sharper patterns
+        "XGBoost": xgb.XGBRegressor(
+            n_estimators=300,      # Increased from 100
+            learning_rate=0.03,    # Slower learning for better precision
+            max_depth=10,          # Deeper trees to catch AQI spikes
+            subsample=0.8,
+            colsample_bytree=0.8
+        ),
+        # Random Forest tuned to reduce smoothing
+        "RandomForest": RandomForestRegressor(
+            n_estimators=200,      # More trees for stability
+            max_depth=15,          # Deeper trees to follow Actual line
+            min_samples_split=2,   # Sensitivity to small data changes
+            random_state=42
+        ),
         "LinearRegression": LinearRegression()
     }
 
@@ -59,22 +72,22 @@ def train_and_evaluate():
         trained_objects[name] = model
         print(f"📉 {name} RMSE: {rmse:.2f}")
 
-    # 5. Best Model Select Karein
+    # 5. Best Model Selection
     best_model_name = min(results, key=results.get)
     best_model = trained_objects[best_model_name]
     
     print("="*60)
     print(f"🏆 WINNER: {best_model_name} with RMSE {results[best_model_name]:.2f}")
 
-    # 6. Save Karein
+    # 6. Save Model and Features
     os.makedirs('models/production', exist_ok=True)
     joblib.dump(best_model, 'models/production/best_model.joblib')
     
-    # Feature list save karein dashboard ke liye
+    # Save feature list for the dashboard
     with open('models/production/features.json', 'w') as f:
         json.dump(feature_cols, f)
         
-    print(f"✅ Best model saved to models/production/best_model.joblib")
+    print(f"✅ Optimized model saved to models/production/best_model.joblib")
 
 if __name__ == "__main__":
     train_and_evaluate()
