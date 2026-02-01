@@ -1,93 +1,83 @@
 import pandas as pd
 import numpy as np
-import joblib
-import json
-import os
-from pymongo import MongoClient
-import xgboost as xgb
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error
+import joblib, json, os
 from sklearn.model_selection import train_test_split
-
-# Import centralized connection class
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import Ridge, LinearRegression
+from sklearn.metrics import root_mean_squared_error, r2_score
+from sklearn.preprocessing import RobustScaler
 from src.utils.mongodb_feature_store import feature_store
 
-def train_and_evaluate():
-    print("🚀 STARTING OPTIMIZED TRAINING: Tuning for Better Accuracy")
-    print("="*60)
-
-    # 1. Load Feature data from MongoDB Atlas Cloud
-    # Feature store handles Local vs Cloud connection
-    db = feature_store.db
+def train_all_models():
+    print("🚀 Training Models with Accuracy Tracking...")
     
-    data = list(db.model_features.find())
+    data = list(feature_store.db.model_features.find())
     if not data:
-        print("❌ No data found in model_features! Run feature engineering first.")
-        return
+        print("❌ No data found!"); return
         
-    df = pd.DataFrame(data).drop('_id', axis=1)
-    
-    # 2. Data Preparation
-    target = 'next_day_aqi'
-    X_raw = df.select_dtypes(include=[np.number])
-    feature_cols = [c for c in X_raw.columns if c != target]
-    
-    X = X_raw[feature_cols].fillna(0)
-    y = X_raw[target].fillna(X_raw[target].mean())
+    df = pd.DataFrame(data)
+    cols_to_drop = ['_id', 'date', 'city', 'next_day_aqi']
+    X = df.drop(columns=[c for c in cols_to_drop if c in df.columns]).select_dtypes(include=[np.number])
+    y = df['next_day_aqi']
 
-    # Train/Test Split
+    # Features list save karna
+    features = list(X.columns)
+    os.makedirs('models/production', exist_ok=True)
+    with open('models/production/features.json', 'w') as f:
+        json.dump(features, f)
+
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    scaler = RobustScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    joblib.dump(scaler, 'models/production/scaler.joblib')
 
-    # 3. Optimized Models Definition (Tuned Hyperparameters)
     models = {
-        # XGBoost tuned for sharper patterns
-        "XGBoost": xgb.XGBRegressor(
-            n_estimators=300,      # Increased from 100
-            learning_rate=0.03,    # Slower learning for better precision
-            max_depth=10,          # Deeper trees to catch AQI spikes
-            subsample=0.8,
-            colsample_bytree=0.8
-        ),
-        # Random Forest tuned to reduce smoothing
-        "RandomForest": RandomForestRegressor(
-            n_estimators=200,      # More trees for stability
-            max_depth=15,          # Deeper trees to follow Actual line
-            min_samples_split=2,   # Sensitivity to small data changes
-            random_state=42
-        ),
-        "LinearRegression": LinearRegression()
+        "Random Forest": RandomForestRegressor(n_estimators=100, random_state=42),
+        "Ridge": Ridge(alpha=1.0),
+        "Linear Regression": LinearRegression()
     }
 
     results = {}
-    trained_objects = {}
+    best_rmse = float('inf')
+    best_model = None
+    best_name = ""
+    best_acc = 0
 
-    # 4. Training Loop
-    for name, model in models.items():
-        print(f"--- Training {name} ---")
-        model.fit(X_train, y_train)
-        preds = model.predict(X_test)
-        rmse = np.sqrt(mean_squared_error(y_test, preds))
-        results[name] = rmse
-        trained_objects[name] = model
-        print(f"📉 {name} RMSE: {rmse:.2f}")
-
-    # 5. Best Model Selection
-    best_model_name = min(results, key=results.get)
-    best_model = trained_objects[best_model_name]
-    
-    print("="*60)
-    print(f"🏆 WINNER: {best_model_name} with RMSE {results[best_model_name]:.2f}")
-
-    # 6. Save Model and Features
-    os.makedirs('models/production', exist_ok=True)
-    joblib.dump(best_model, 'models/production/best_model.joblib')
-    
-    # Save feature list for the dashboard
-    with open('models/production/features.json', 'w') as f:
-        json.dump(feature_cols, f)
+    for name, m in models.items():
+        m.fit(X_train_scaled, y_train)
+        preds = m.predict(X_test_scaled)
         
-    print(f"✅ Optimized model saved to models/production/best_model.joblib")
+        rmse = root_mean_squared_error(y_test, preds)
+        r2 = r2_score(y_test, preds)
+        
+        # Accuracy Percentage (R2 based)
+        acc_pct = max(0, r2 * 100) 
+        
+        results[name] = {
+            "rmse": round(float(rmse), 2), 
+            "accuracy": f"{round(acc_pct, 2)}%"
+        }
+        print(f"📊 {name} -> RMSE: {rmse:.2f}, Accuracy: {round(acc_pct, 2)}%")
+        
+        if rmse < best_rmse:
+            best_rmse = rmse
+            best_model = m
+            best_name = name
+            best_acc = acc_pct
+
+    # Final Winner Save
+    joblib.dump(best_model, 'models/production/best_model.joblib')
+    with open('models/production/metrics.json', 'w') as f:
+        json.dump({
+            "model_name": best_name, 
+            "rmse": round(float(best_rmse), 2), 
+            "accuracy": f"{round(best_acc, 2)}%",
+            "all_results": results
+        }, f)
+        
+    print(f"🏆 Winner: {best_name} | Accuracy: {round(best_acc, 2)}%")
 
 if __name__ == "__main__":
-    train_and_evaluate()
+    train_all_models()

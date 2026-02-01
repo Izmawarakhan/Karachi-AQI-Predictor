@@ -1,1 +1,1 @@
-["aqi_value", "temperature", "humidity", "aqi_lag_1h", "aqi_lag_24h", "aqi_rolling_avg_24h", "hour", "month", "day_of_week"]
+["aqi_value", "temperature", "humidity", "wind_speed", "pressure", "aqi_lag_1h", "aqi_lag_6h", "aqi_lag_24h", "aqi_mean_6h", "aqi_std_6h", "aqi_mean_12h", "aqi_std_12h", "aqi_mean_24h", "aqi_std_24h", "hour", "day_of_week", "is_weekend"]
