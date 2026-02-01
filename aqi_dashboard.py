@@ -28,7 +28,7 @@ except Exception as e:
 
 st.title("🏙️ Karachi AQI Prediction & Model Analysis")
 
-# --- 📊 Section 1: Model Performance Graph ---
+# --- Section 1: Model Performance Graph ---
 st.subheader("📈 Model Performance Comparison")
 all_results = m_info.get('all_results', {})
 
@@ -48,27 +48,34 @@ if all_results:
         fig_rmse = px.line(df_plot, x='Model', y='RMSE (Error)', markers=True, title="Model Error (Lower is Better)")
         st.plotly_chart(fig_rmse, use_container_width=True)
 
-# --- Section 2: Current Status ---
+# --- Section 2: Current Status & Alerts ---
 latest_data = list(db.model_features.find().sort("date", -1).limit(1))
 if latest_data:
     latest = latest_data[0]
+    curr_aqi = latest['aqi_value']
+    
     st.markdown("---")
+    
+    # Hazardous Alerts
+    if curr_aqi > 150:
+        st.error(f"⚠️ HAZARDOUS ALERT: AQI is {round(curr_aqi,1)}. Air quality is unhealthy!")
+    elif curr_aqi > 100:
+        st.warning(f"🔔 CAUTION: AQI is {round(curr_aqi,1)}. Sensitive groups should stay indoors.")
+
     st.subheader("🌡️ Current Atmospheric Status")
     
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Current AQI", f"{round(latest['aqi_value'], 1)}")
+    # Metrics with Last Sync removed
+    c1, c2 = st.columns(2)
+    c1.metric("Current AQI", f"{round(curr_aqi, 1)}")
     c2.metric("Winning Model", m_info['model_name'])
-    c3.write(f"**Last Data Sync:** {latest['date']}")
 
-    # --- 🎯 Section 3: Prediction Button & Forecast ---
+    # --- Section 3: Prediction Button & Forecast ---
     st.markdown("---")
     st.subheader("🔮 Smart AI Forecast")
-    st.write("Click the button below to generate the air quality forecast for the next 3 days using the Random Forest model.")
-
-    # 🚨 Prediction Button
+    st.write("Click the button below to generate the air quality forecast for the next 3 days.")
+    
     if st.button('🚀 Click to Generate 3-Day Forecast'):
         with st.spinner('AI is calculating patterns...'):
-            # Feature Alignment
             input_df = pd.DataFrame([{f: latest.get(f, 0.0) for f in features_list}])[features_list]
             input_scaled = scaler.transform(input_df)
             base_pred = model.predict(input_scaled)[0]
@@ -78,7 +85,6 @@ if latest_data:
             
             for i in range(1, 4):
                 f_date = start_date + timedelta(days=i)
-                # Random Forest based trend
                 p_val = max(0, base_pred + (i * np.random.uniform(-1.2, 1.2)))
                 status = "🟢 Good" if p_val <= 50 else "🟡 Moderate" if p_val <= 100 else "🔴 Unhealthy"
                 
@@ -89,11 +95,7 @@ if latest_data:
                     "Health Category": status
                 })
             
-            # Display result after click
             st.success("Forecast generated successfully!")
             st.table(pd.DataFrame(forecasts))
-    else:
-        st.info("Waiting for your command... Press the button to see the future AQI.")
-
 else:
     st.warning("No data found in MongoDB.")
