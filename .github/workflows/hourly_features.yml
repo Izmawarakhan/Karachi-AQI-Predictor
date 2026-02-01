@@ -1,0 +1,22 @@
+name: Hourly Feature Generation
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Har ghante ki shuruat par (00:00, 01:00, etc.)
+  workflow_dispatch:
+
+jobs:
+  features:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Run Feature Script
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+        run: |
+          pip install -r requirements.txt
+          python -m src.feature_engineering.run_feature_engineering
